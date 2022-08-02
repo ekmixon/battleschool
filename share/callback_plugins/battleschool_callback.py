@@ -7,16 +7,8 @@ class CallbackModule(object):
         play = getattr(self, 'play', None)
         task = getattr(self, 'task', None)
 
-        if play is not None:
-            playbook = play.playbook.filename
-        else:
-            playbook = ""
-
-        if task is not None:
-            task_name = task.name
-        else:
-            task_name = ""
-
+        playbook = play.playbook.filename if play is not None else ""
+        task_name = task.name if task is not None else ""
         print("%25s: play = %s, task = %s, args = %s" % (event, playbook, task_name, args))
 
     def on_any(self, *args, **kwargs):

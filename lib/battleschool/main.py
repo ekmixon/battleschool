@@ -30,7 +30,6 @@ import tempfile
 # TODO: verify environment: ansible
 
 def getSourceHandlers():
-    handlers = [Git, Local, Url]
     # TODO: auto load sources
     # for name, obj in inspect.getmembers(sourcepkg):
     #     if inspect.ismodule(obj):
@@ -40,31 +39,25 @@ def getSourceHandlers():
     #                 if inspect.isclass(srcObj) and srcName != 'Source':
     #                     print "Loading %s/%s" % (srcName, srcObj)
     #                     handlers.append(srcObj)
-    return handlers
+    return [Git, Local, Url]
 
 
 def load_config_path(options, inventory, sshpass, sudopass):
-    if options.config_file:
-        config_file = options.config_file
-        parse_result = urlparse(config_file)
-        if parse_result.scheme:
-            url_options = deepcopy(options)
-            url_options.update_sources = True
-            url_options.cache_dir = gettempdir()
-            name = 'downloaded_config.yml'
-            sources = {
-                'url': [
-                    {'name': name, 'url': config_file}
-                ]
-            }
-            display(banner("Downloading config from url"))
-            url = Url(url_options, sources)
-            files = url.run(inventory, sshpass, sudopass)
-            return files[0]
-        else:
-            return config_file
+    if not options.config_file:
+        return f"{options.config_dir}/config.yml"
+    config_file = options.config_file
+    parse_result = urlparse(config_file)
+    if not parse_result.scheme:
+        return config_file
 
-    return "%s/config.yml" % options.config_dir
+    url_options = deepcopy(options)
+    url_options.update_sources = True
+    url_options.cache_dir = gettempdir()
+    sources = {'url': [{'name': 'downloaded_config.yml', 'url': config_file}]}
+    display(banner("Downloading config from url"))
+    url = Url(url_options, sources)
+    files = url.run(inventory, sshpass, sudopass)
+    return files[0]
 
 
 def main(args, battleschool_dir=None):

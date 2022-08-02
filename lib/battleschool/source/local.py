@@ -16,7 +16,7 @@ class Local(Source):
 
         if self.has_source_type():
             for source in self.sources[self.type()]:
-                playbook = "%s/playbooks/%s" % (self.options.config_dir, source)
+                playbook = f"{self.options.config_dir}/playbooks/{source}"
                 self.add_playbook(playbooks, playbook)
 
         return playbooks

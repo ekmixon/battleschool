@@ -12,8 +12,7 @@ class Git(Source):
         return 'git'
 
     def dest_dir(self, source):
-        dest_dir = "%s/%s" % (self.options.cache_dir, source['name'])
-        return dest_dir
+        return f"{self.options.cache_dir}/{source['name']}"
 
     def module_args(self, source):
         force = "no"
@@ -23,6 +22,4 @@ class Git(Source):
             update = "yes"
             force = "yes"
 
-        module_args = "repo=%s dest=%s force=%s update=%s " % \
-                      (source['repo'], self.dest_dir(source), force, update)
-        return module_args
+        return f"repo={source['repo']} dest={self.dest_dir(source)} force={force} update={update} "

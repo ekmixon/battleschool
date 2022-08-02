@@ -112,15 +112,15 @@ class Archive(object):
         pass
 
     def source(self):
-        if exists(self.params, 'src'):
-            return self.params['src']
-
-        return self.params['url']
+        return self.params['src'] if exists(self.params, 'src') else self.params['url']
 
 
     def chown_dir(self, chown_user, target_path):
         if chown_user is not None:
-            rc, out, err = self.module.run_command("%s -R %s %s" % (self.chown_path, chown_user, target_path))
+            rc, out, err = self.module.run_command(
+                f"{self.chown_path} -R {chown_user} {target_path}"
+            )
+
             if rc > 0:
                 self.module.fail_json(msg="failed to chown %s: %s\n\t%s" % (self.pkg.name(), out, err))
 
@@ -164,14 +164,14 @@ class Archive(object):
                 dest = self.params['dest']
 
                 if not path.isabs(dest):
-                    dest = "%s/%s" % (download_dir, dest)
+                    dest = f"{download_dir}/{dest}"
 
                 cwd = None
-                output_opts = "--output %s" % dest
+                output_opts = f"--output {dest}"
                 do_download = not path.exists(dest)
             else:
                 sha1 = hashlib.sha1(url).hexdigest()
-                dest = "%s/%s" % (download_dir, sha1)
+                dest = f"{download_dir}/{sha1}"
                 if not path.exists(dest):
                     os.makedirs(dest)
                     self.chown_dir(chown_user, dest)
@@ -190,7 +190,7 @@ class Archive(object):
                 elif path.isdir(dest):
                     files = os.listdir(dest)
                     for file in files:
-                        file_path = "%s/%s" % (dest, file)
+                        file_path = f"{dest}/{file}"
                         os.unlink(file_path)
 
             if do_download:
@@ -209,10 +209,12 @@ class Archive(object):
                 num_files = len(files)
 
                 if num_files != 1:
-                    self.module.fail_json(msg="failed to locate download for %s: %s file(s) found in %s"
-                                              % (self.pkg.name(), num_files, dest))
+                    self.module.fail_json(
+                        msg=f"failed to locate download for {self.pkg.name()}: {num_files} file(s) found in {dest}"
+                    )
 
-                dest = "%s/%s" % (dest, files[0])
+
+                dest = f"{dest}/{files[0]}"
             # self.module.exit_json(changed=False, msg="dest %s" % dest)
 
             #TODO: only chown downloaded item
@@ -235,10 +237,13 @@ class ZipArchive(Archive):
     def open(self):
         # self.module.exit_json(changed=False, msg="unzip_path %s, pkg_path %s, target_dir %s, archive_path %s"
         #       % (self.unzip_path, self.pkg_path(), self.target_dir, self.params['archive_path']))
-        rc, out, err = self.module.run_command("%s %s -d %s" % (self.unzip_path, self.pkg_path(), self.target_dir))
+        rc, out, err = self.module.run_command(
+            f"{self.unzip_path} {self.pkg_path()} -d {self.target_dir}"
+        )
+
         if rc > 0:
             self.module.fail_json(msg="failed to unzip %s: %s\n\t%s" % (self.pkg_path(), out, err))
-        self._pkg_path = "%s/%s" % (self.target_dir, self.params['archive_path'])
+        self._pkg_path = f"{self.target_dir}/{self.params['archive_path']}"
 
     def close(self):
         shutil.rmtree(self.target_dir)
@@ -257,11 +262,13 @@ class TarArchive(Archive):
         #self.module.exit_json(changed=False,msg="tar_path %s, tar_opts %s, pkg_path %s, target_dir %s, archive_path %s"
         #                                        % (self.tar_path, self.tar_opts, self.pkg_path(), self.target_dir,
         #                                           self.params['archive_path']))
-        rc, out, err = self.module.run_command("%s %s %s -C %s" % (self.tar_path, self.tar_opts, self.pkg_path(),
-                                                                   self.target_dir))
+        rc, out, err = self.module.run_command(
+            f"{self.tar_path} {self.tar_opts} {self.pkg_path()} -C {self.target_dir}"
+        )
+
         if rc > 0:
             self.module.fail_json(msg="failed to extract tar %s: %s\n\t%s" % (self.pkg_path(), out, err))
-        self._pkg_path = "%s/%s" % (self.target_dir, self.params['archive_path'])
+        self._pkg_path = f"{self.target_dir}/{self.params['archive_path']}"
 
     def close(self):
         shutil.rmtree(self.target_dir)
@@ -289,12 +296,15 @@ class DmgArchive(Archive):
         # self.module.exit_json(changed=False, msg="hdicmd: %s" % command)
         rc, out, err = run_command(self.module, command)
         if rc > 0:
-            self.module.fail_json(msg="failed to attach %s: rc: %s, %s, err: %s" % (self.pkg.name(), rc, out, err))
+            self.module.fail_json(
+                msg=f"failed to attach {self.pkg.name()}: rc: {rc}, {out}, err: {err}"
+            )
+
 
         idx = out.index("/Volumes/")
         self.dmg_volume = out[idx:].strip()
         archive_path = self.params['archive_path']
-        self._pkg_path = "%s/%s" % (self.dmg_volume, archive_path)
+        self._pkg_path = f"{self.dmg_volume}/{archive_path}"
         # self.module.exit_json(changed=False, msg="pkg_path %s, archive_path %s" % (self._pkg_path, archive_path))
 
     def close(self):
@@ -355,7 +365,10 @@ class PkgPackage(Package):
         rc, out, err = run_command(self.module, "%s --pkg-info=%s 2>&1 |grep version| awk '{print $2}'" %
                                   (self.pkgutil_path, self._pkg_name))
         if rc > 0:
-            module.fail_json(msg="failed to find version via pkgutil %s: %s %s" % (self._pkg_name, out, err))
+            module.fail_json(
+                msg=f"failed to find version via pkgutil {self._pkg_name}: {out} {err}"
+            )
+
         return out.strip()
 
     def install(self, pkg_path):
@@ -378,10 +391,7 @@ class PkgPackage(Package):
         if pkg_version is not None:
             return self._version == pkg_version
 
-        if self._version:
-            return True
-
-        return False
+        return bool(self._version)
 
     def name(self):
         return self._pkg_name
@@ -405,7 +415,7 @@ class AppPackage(Package):
             self.module.fail_json(msg="for pkg_type=app one of app_creates or archive_path must not be empty")
 
     def set_applications_path(self, param_name):
-        self._app_creates = '/Applications/%s' % self.params[param_name]
+        self._app_creates = f'/Applications/{self.params[param_name]}'
 
     def install(self, pkg_path):
         # self.module.fail_json(msg="pkg_path %s - _app_creates %s" % (pkg_path, self._app_creates))
@@ -439,11 +449,7 @@ class ScriptPackage(Package):
         _cmd = "%s%s \"%s\"%s" % (self._prefix, self._exe_path, pkg_path, self._postfix)
         # self.module.exit_json(changed=False, msg="_cmd %s" % _cmd)
         rc, out, err = self.module.run_command(_cmd, data=self._data)
-        if rc > 0:
-            return out, err
-        # self.module.exit_json(changed=False, msg="rc %s, out %s, err %s" % (rc, out, err))
-
-        return False
+        return (out, err) if rc > 0 else False
 
     def is_installed(self):
         # self.module.exit_json(changed=False, msg="is_installed %s" % path.exists(self._creates))
@@ -453,10 +459,7 @@ class ScriptPackage(Package):
         return self._creates
 
     def get_param(self, key, default=''):
-        if exists(self.params, key):
-            return self.params[key]
-        else:
-            return default
+        return self.params[key] if exists(self.params, key) else default
 
     def version(self):
         return "N/A"
@@ -464,10 +467,7 @@ class ScriptPackage(Package):
 
 def exists(dict, key):
     """ is key in dict and is dict[key] not none """
-    if key in dict and dict[key] is not None:
-        return True
-
-    return False
+    return key in dict and dict[key] is not None
 
 
 class Installer(object):
@@ -481,43 +481,45 @@ class Installer(object):
         # self.module.exit_json(changed=False, msg="params %s" % self.params)
 
         if pkg.is_installed() and not acquire_only:
-            self.module.exit_json(changed=False, version=pkg.version(), msg="package %s already present" % pkg.name())
+            self.module.exit_json(
+                changed=False,
+                version=pkg.version(),
+                msg=f"package {pkg.name()} already present",
+            )
+
         else:
             archive = self._instantiate('archive_type', 'Archive', pkg)
 
             acquired = archive.acquire()
 
             if acquire_only:
-                if acquired:
-                    state = "Acquired"
-                else:
-                    state = "Skipped acquisition of"
-                self.module.exit_json(changed=acquired, msg="%s pkg %s" % (state, archive.source()))
+                state = "Acquired" if acquired else "Skipped acquisition of"
+                self.module.exit_json(changed=acquired, msg=f"{state} pkg {archive.source()}")
                 return
 
             archive.open()
 
-            failed = pkg.install(archive.pkg_path())
-
-            if failed:
+            if failed := pkg.install(archive.pkg_path()):
                 archive.close()
-                self.module.fail_json(msg="failed to install package %s: %s %s" % (archive.pkg_path(), failed[0], failed[1]))
+                self.module.fail_json(
+                    msg=f"failed to install package {archive.pkg_path()}: {failed[0]} {failed[1]}"
+                )
+
 
             archive.close()
             #self.module.exit_json(changed=False, msg="pkg %s, archive %s" % (pkg, archive))
-            self.module.exit_json(changed=True,  version=pkg.version(), msg="installed package %s" % pkg.name())
+            self.module.exit_json(
+                changed=True,
+                version=pkg.version(),
+                msg=f"installed package {pkg.name()}",
+            )
 
     def _instantiate(self, class_key, class_suffix, pkg=None):
-        class_name = "%s%s" % (self.params[class_key].title(), class_suffix)
+        class_name = f"{self.params[class_key].title()}{class_suffix}"
         m = __import__(self.__module__)
         klass = getattr(m, class_name)
 
-        if pkg is None:
-            instance = klass(self.module)
-        else:
-            instance = klass(self.module, pkg)
-
-        return instance
+        return klass(self.module) if pkg is None else klass(self.module, pkg)
 
     def validate(self):
         if self.params['pkg_type'] == "app" and self.params['archive_type'] == "none":
@@ -545,10 +547,7 @@ def get_env(name, default, converter = None):
     else:
         val = default
 
-    if converter:
-        return converter(val)
-    else:
-        return val
+    return converter(val) if converter else val
 
 
 def main():

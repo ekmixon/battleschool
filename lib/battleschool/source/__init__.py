@@ -19,10 +19,7 @@ class Source(object):
 
     def __init__(self, options, sources):
         self.options = options
-        if (sources):
-            self.sources = sources
-        else:
-            self.sources = {}
+        self.sources = sources or {}
         return
 
     @abc.abstractmethod
@@ -38,8 +35,7 @@ class Source(object):
         return self.type() in self.sources and self.sources[self.type()] is not None
 
     def dest_dir(self, source):
-        dest_dir = "%s/%s" % (self.options.cache_dir, source['name'])
-        return dest_dir
+        return f"{self.options.cache_dir}/{source['name']}"
 
     def module_name(self):
         return self.type()
@@ -108,7 +104,7 @@ class Source(object):
                             for dir in playbook:
                                 names = playbook[dir]
                                 for name in names:
-                                    playbook_name = "%s/%s" % (dir, name)
+                                    playbook_name = f"{dir}/{name}"
                                     if playbook_name not in source_playbooks:
                                         source_playbooks.append(playbook_name)
                         elif playbook not in source_playbooks:
@@ -120,7 +116,7 @@ class Source(object):
                     if not playbook_name.endswith(".yml") and not playbook_name.endswith(".yaml"):
                         suffix = ".yml"
 
-                    playbook = "%s/%s%s" % (self.dest_dir(source), playbook_name, suffix)
+                    playbook = f"{self.dest_dir(source)}/{playbook_name}{suffix}"
                     self.add_playbook(playbooks, playbook)
 
         return playbooks

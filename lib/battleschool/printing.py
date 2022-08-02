@@ -11,20 +11,20 @@ pp = pprint.PrettyPrinter()
 def colorize(lead, num, color):
     """ Print 'lead' = 'num' in 'color' """
     if num != 0 and ANSIBLE_COLOR and color is not None:
-        return "%s%s%s" % (stringc(lead, color), stringc("=", color), stringc(str(num), color))
+        return f'{stringc(lead, color)}{stringc("=", color)}{stringc(str(num), color)}'
     else:
-        return "%s=%s" % (lead, str(num))
+        return f"{lead}={str(num)}"
 
 
 def hostcolor(host, stats, color=True):
     if ANSIBLE_COLOR and color:
         if stats['failures'] != 0 or stats['unreachable'] != 0:
-            return "%s" % stringc(host, 'red')
+            return f"{stringc(host, 'red')}"
         elif stats['changed'] != 0:
-            return "%s" % stringc(host, 'yellow')
+            return f"{stringc(host, 'yellow')}"
         else:
-            return "%s" % stringc(host, 'green')
-    return "%s" % host
+            return f"{stringc(host, 'green')}"
+    return f"{host}"
 
 
 def print_stats(host, smry):
@@ -62,26 +62,19 @@ def print_stats(host, smry):
 def banner(msg):
     #TODO: configurable size orig 78
     width = 110 - len(msg)
-    if width < 3:
-        width = 3
+    width = max(width, 3)
     filler = "#" * width
-    return "## %s %s " % (msg, filler)
+    return f"## {msg} {filler} "
 
 
 class BattleschoolRunnerCallbacks(DefaultRunnerCallbacks):
     """ callbacks for use by battles """
 
     def get_play(self):
-        if self.runner:
-            return self.runner
-        if self.task:
-            return self.task
-        return self.play
+        return self.runner or self.task or self.play
 
     def get_name(self):
-        if self.runner:
-            return self.get_play().module_name
-        return self.get_play().name
+        return self.get_play().module_name if self.runner else self.get_play().name
 
     def on_failed(self, host, res, ignore_errors=False):
         if not ignore_errors:
@@ -90,10 +83,10 @@ class BattleschoolRunnerCallbacks(DefaultRunnerCallbacks):
 
     def on_ok(self, host, res):
         if 'msg' in res:
-            msg = ": %s" % res.get('msg')
+            msg = f": {res.get('msg')}"
 
             if 'item' in res:
-                msg = "%s => item=%s" % (msg, res.get('item'))
+                msg = f"{msg} => item={res.get('item')}"
         else:
             msg = ''
 
@@ -107,7 +100,7 @@ class BattleschoolRunnerCallbacks(DefaultRunnerCallbacks):
 
             #TODO: move this?
             if module_name == 'git':
-                args = dict()
+                args = {}
                 tokens = invocation['module_args'].split()
                 for token in tokens:
                     pair = token.split("=")[:2]
@@ -118,9 +111,7 @@ class BattleschoolRunnerCallbacks(DefaultRunnerCallbacks):
         super(BattleschoolRunnerCallbacks, self).on_ok(host, res)
 
     def on_unreachable(self, host, results):
-        item = None
-        if type(results) == dict:
-            item = results.get('item', None)
+        item = results.get('item', None) if type(results) == dict else None
         if item:
             msg = "\tFailed Task: %s => (item=%s) => %s" % (host, item, results)
         else:
@@ -190,7 +181,11 @@ class BattleschoolCallbacks(object):
         call_callback_module('playbook_on_not_import_for_host', host, missing_file)
 
     def on_play_start(self, pattern):
-        display(banner("Executing playbook %s" % self.playbook.filename), color="bright blue")
+        display(
+            banner(f"Executing playbook {self.playbook.filename}"),
+            color="bright blue",
+        )
+
         call_callback_module('playbook_on_play_start', pattern)
 
     def on_stats(self, stats):

@@ -62,20 +62,19 @@ except ImportError:
     import syslog
     has_journal = False
 
-FILE_COMMON_ARGUMENTS=dict(
-    src = dict(),
-    mode = dict(),
-    owner = dict(),
-    group = dict(),
-    seuser = dict(),
-    serole = dict(),
-    selevel = dict(),
-    setype = dict(),
-    # not taken by the file module, but other modules call file so it must ignore them.
-    content = dict(),
-    backup = dict(),
-    force = dict(),
-    )
+FILE_COMMON_ARGUMENTS = dict(
+    src={},
+    mode={},
+    owner={},
+    group={},
+    seuser={},
+    serole={},
+    selevel={},
+    setype={},
+    content={},
+    backup={},
+    force={},
+)
 
 def get_platform():
     ''' what's the platform?  example: Linux is a platform. '''
@@ -86,9 +85,8 @@ def get_distribution():
     if platform.system() == 'Linux':
         try:
             distribution = platform.linux_distribution()[0].capitalize()
-            if distribution == 'NA':
-                if os.path.isfile('/etc/system-release'):
-                    distribution = 'OtherLinux'
+            if distribution == 'NA' and os.path.isfile('/etc/system-release'):
+                distribution = 'OtherLinux'
         except:
             # FIXME: MethodMissing, I assume?
             distribution = platform.dist()[0].capitalize()
@@ -213,20 +211,10 @@ class AnsibleModule(object):
     # by selinux.lgetfilecon().
 
     def selinux_mls_enabled(self):
-        if not HAVE_SELINUX:
-            return False
-        if selinux.is_selinux_mls_enabled() == 1:
-            return True
-        else:
-            return False
+        return selinux.is_selinux_mls_enabled() == 1 if HAVE_SELINUX else False
 
     def selinux_enabled(self):
-        if not HAVE_SELINUX:
-            return False
-        if selinux.is_selinux_enabled() == 1:
-            return True
-        else:
-            return False
+        return selinux.is_selinux_enabled() == 1 if HAVE_SELINUX else False
 
     # Determine whether we need a placeholder for selevel/mls
     def selinux_initial_context(self):
@@ -309,8 +297,7 @@ class AnsibleModule(object):
             try:
                 if self.check_mode:
                     return True
-                rc = selinux.lsetfilecon(self._to_filesystem_str(path),
-                                         str(':'.join(new_context)))
+                rc = selinux.lsetfilecon(self._to_filesystem_str(path), ':'.join(new_context))
             except OSError:
                 self.fail_json(path=path, msg='invalid selinux context', new_context=new_context, cur_context=cur_context, input_was=context)
             if rc != 0:
@@ -329,7 +316,7 @@ class AnsibleModule(object):
             try:
                 uid = pwd.getpwnam(owner).pw_uid
             except KeyError:
-                self.fail_json(path=path, msg='chown failed: failed to look up user %s' % owner)
+                self.fail_json(path=path, msg=f'chown failed: failed to look up user {owner}')
         if orig_uid != uid:
             if self.check_mode:
                 return True
@@ -351,7 +338,7 @@ class AnsibleModule(object):
             try:
                 gid = grp.getgrnam(group).gr_gid
             except KeyError:
-                self.fail_json(path=path, msg='chgrp failed: failed to look up group %s' % group)
+                self.fail_json(path=path, msg=f'chgrp failed: failed to look up group {group}')
         if orig_gid != gid:
             if self.check_mode:
                 return True
@@ -481,7 +468,10 @@ class AnsibleModule(object):
             required = v.get('required', False)
             if default is not None and required:
                 # not alias specific but this is a good place to check this
-                self.fail_json(msg="internal error: required and default are mutally exclusive for %s" % k)
+                self.fail_json(
+                    msg=f"internal error: required and default are mutally exclusive for {k}"
+                )
+
             if aliases is None:
                 continue
             if type(aliases) != list:
@@ -507,14 +497,10 @@ class AnsibleModule(object):
             if k == 'CHECKMODE':
                 continue
             if k not in self._legal_inputs:
-                self.fail_json(msg="unsupported parameter for module: %s" % k)
+                self.fail_json(msg=f"unsupported parameter for module: {k}")
 
     def _count_terms(self, check):
-        count = 0
-        for term in check:
-            if term in self.params:
-                count += 1
-        return count
+        return sum(term in self.params for term in check)
 
     def _check_mutually_exclusive(self, spec):
         if spec is None:
@@ -522,7 +508,7 @@ class AnsibleModule(object):
         for check in spec:
             count = self._count_terms(check)
             if count > 1:
-                self.fail_json(msg="parameters are mutually exclusive: %s" % check)
+                self.fail_json(msg=f"parameters are mutually exclusive: {check}")
 
     def _check_required_one_of(self, spec):
         if spec is None:
@@ -530,7 +516,7 @@ class AnsibleModule(object):
         for check in spec:
             count = self._count_terms(check)
             if count == 0:
-                self.fail_json(msg="one of the following is required: %s" % ','.join(check))
+                self.fail_json(msg=f"one of the following is required: {','.join(check)}")
 
     def _check_required_together(self, spec):
         if spec is None:
@@ -538,9 +524,8 @@ class AnsibleModule(object):
         for check in spec:
             counts = [ self._count_terms([field]) for field in check ]
             non_zero = [ c for c in counts if c > 0 ]
-            if len(non_zero) > 0:
-                if 0 in counts:
-                    self.fail_json(msg="parameters are required together: %s" % check)
+            if non_zero and 0 in counts:
+                self.fail_json(msg=f"parameters are required together: {check}")
 
     def _check_required_arguments(self):
         ''' ensure all required arguments are present '''
@@ -549,8 +534,8 @@ class AnsibleModule(object):
             required = v.get('required', False)
             if required and k not in self.params:
                 missing.append(k)
-        if len(missing) > 0:
-            self.fail_json(msg="missing required arguments: %s" % ",".join(missing))
+        if missing:
+            self.fail_json(msg=f'missing required arguments: {",".join(missing)}')
 
     def _check_argument_values(self):
         ''' ensure all arguments have the requested values, and there are no stray arguments '''
@@ -559,11 +544,10 @@ class AnsibleModule(object):
             if choices is None:
                 continue
             if type(choices) == list:
-                if k in self.params:
-                    if self.params[k] not in choices:
-                        choices_str=",".join([str(c) for c in choices])
-                        msg="value of %s must be one of: %s, got: %s" % (k, choices_str, self.params[k])
-                        self.fail_json(msg=msg)
+                if k in self.params and self.params[k] not in choices:
+                    choices_str=",".join([str(c) for c in choices])
+                    msg = f"value of {k} must be one of: {choices_str}, got: {self.params[k]}"
+                    self.fail_json(msg=msg)
             else:
                 self.fail_json(msg="internal error: do not know how to interpret argument_spec")
 
@@ -607,10 +591,15 @@ class AnsibleModule(object):
                     else:
                         is_invalid = True
             else:
-                self.fail_json(msg="implementation error: unknown type %s requested for %s" % (wanted, k))
+                self.fail_json(
+                    msg=f"implementation error: unknown type {wanted} requested for {k}"
+                )
+
 
             if is_invalid:
-                self.fail_json(msg="argument %s is of invalid type: %s, required: %s" % (k, type(value), wanted))
+                self.fail_json(
+                    msg=f"argument {k} is of invalid type: {type(value)}, required: {wanted}"
+                )
 
     def _set_defaults(self, pre=True):
         for (k,v) in self.argument_spec.iteritems():
@@ -619,10 +608,8 @@ class AnsibleModule(object):
                 # this prevents setting defaults on required items
                 if default is not None and k not in self.params:
                     self.params[k] = default
-            else:
-                # make sure things without a default still get set None
-                if k not in self.params:
-                    self.params[k] = default
+            elif k not in self.params:
+                self.params[k] = default
 
     def _load_params(self):
         ''' read the input and return a dictionary and the arguments string '''
@@ -691,10 +678,7 @@ class AnsibleModule(object):
         if found return full path; otherwise return None
         '''
         sbin_paths = ['/sbin', '/usr/sbin', '/usr/local/sbin']
-        paths = []
-        for d in opt_dirs:
-            if d is not None and os.path.exists(d):
-                paths.append(d)
+        paths = [d for d in opt_dirs if d is not None and os.path.exists(d)]
         paths += os.environ.get('PATH', '').split(os.pathsep)
         bin_path = None
         # mangle PATH to include /sbin dirs
@@ -707,7 +691,7 @@ class AnsibleModule(object):
                 bin_path = path
                 break
         if required and bin_path is None:
-            self.fail_json(msg='Failed to find required executable %s' % arg)
+            self.fail_json(msg=f'Failed to find required executable {arg}')
         return bin_path
 
     def boolean(self, arg):
@@ -721,7 +705,7 @@ class AnsibleModule(object):
         elif arg in BOOLEANS_FALSE:
             return False
         else:
-            self.fail_json(msg='Boolean %s not in either boolean list' % arg)
+            self.fail_json(msg=f'Boolean {arg} not in either boolean list')
 
     def jsonify(self, data):
         return json.dumps(data)
@@ -756,15 +740,12 @@ class AnsibleModule(object):
         if not os.path.exists(filename):
             return None
         if os.path.isdir(filename):
-            self.fail_json(msg="attempted to take md5sum of directory: %s" % filename)
+            self.fail_json(msg=f"attempted to take md5sum of directory: {filename}")
         digest = _md5()
         blocksize = 64 * 1024
-        infile = open(filename, 'rb')
-        block = infile.read(blocksize)
-        while block:
-            digest.update(block)
-            block = infile.read(blocksize)
-        infile.close()
+        with open(filename, 'rb') as infile:
+            while block := infile.read(blocksize):
+                digest.update(block)
         return digest.hexdigest()
 
     def backup_local(self, fn):

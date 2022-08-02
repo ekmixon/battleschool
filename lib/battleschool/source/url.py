@@ -18,13 +18,9 @@ class Url(Source):
         return self.options.cache_dir
 
     def module_args(self, source):
-        force = "no"
+        force = "yes" if self.options.update_sources else "no"
+        module_args = f'url={source["url"]} dest={self.dest_dir(source)}/{source["name"]} force={force} validate_certs=no '
 
-        if self.options.update_sources:
-            force = "yes"
-
-        module_args = "url=%s dest=%s/%s force=%s validate_certs=no " % \
-                      (source["url"], self.dest_dir(source), source["name"], force)
 
         if "playbooks" not in source:
             source["playbooks"] = []
